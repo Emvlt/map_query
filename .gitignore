@@ -2,5 +2,11 @@
 
 __pycache__/
 
-datasets/raw_data_files
-datasets/processed_tile_data
+datasets/raw
+datasets/processed
+
+map_query/old
+
+map_query/label_data_analysis.py
+
+plots

@@ -1,0 +1,52 @@
+[paths]
+raw = 'datasets/raw'
+processed = 'datasets/processed'
+plots = 'plots'
+
+[project_data]
+project_name = 'MAPHIS'
+city_names = ['Sheerness', 'Luton']
+
+[operations]
+[operations.pre_processing]
+### Information about the maps
+# map_image_file_extension (str): file extension of the map image data (e.g: '.tif')
+# map_geodata_file_extension (str): file extension of the map projection data (e.g: '.tfw')
+map_image_file_extension = '.tif'
+map_geodata_file_extension = '.tfw'
+### Information about geospatial data in the project
+# crs : Coordinate REference System (e.g: "EPSG:4326")
+# geo_data_file_extension : file extension to which save the geospatial data to (e.g: '.geojson'); see: https://geopandas.org/en/stable/docs/user_guide/io.html
+# geo_data_file_extension_driver = driver to save the geospatial data (e.g: 'GeoJSON'); see: https://geopandas.org/en/stable/docs/user_guide/io.html
+crs = "EPSG:4326"
+geo_data_file_extension = '.geojson'
+geo_data_file_extension_driver = 'GeoJSON'
+
+[operations.display_city]
+geo_data_file_extension = '.geojson'
+
+[operations.template_matching]
+pixel_tolerance = 20
+detection_threshold = 0.85
+templates_path = 'datasets/labels/templates'
+templates = ['bench_mark', 'lamp_post', 'man_hole']
+map_image_file_extension = '.tif'
+crs = "EPSG:4326"
+geo_data_file_extension = '.geojson'
+geo_data_file_extension_driver = 'GeoJSON'
+template_file_extension ='.jpg'
+
+[operations.compute_feature_density]
+features = ['bench_mark', 'lamp_post', 'man_hole']
+geo_data_file_extension = '.geojson'
+geo_data_file_extension_driver = 'GeoJSON'
+
+[operations.display_feature_density]
+features = ['bench_mark', 'lamp_post', 'man_hole']
+geo_data_file_extension = '.geojson'
+
+[operations.display_features]
+figure = 'features'
+features = ['bench_mark', 'lamp_post', 'man_hole']
+geo_data_file_extension = '.geojson'
+
