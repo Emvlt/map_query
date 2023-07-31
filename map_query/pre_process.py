@@ -93,6 +93,7 @@ def pre_process_city(
             'tile_name':[],
             'tile_width':[],
             'tile_height':[],
+            'tile_path':[],
             'geometry':[]
             }
 
@@ -105,6 +106,8 @@ def pre_process_city(
             tile_shape = compute_tile_shape(tile_path)
             city_dict['tile_width'].append(tile_shape[0])
             city_dict['tile_height'].append(tile_shape[1])
+
+            city_dict['tile_path'].append(tile_path)
 
             additional_tile_file = list(raw_city_path.glob(f'{tile_name}*'))
             for tile_file_path in additional_tile_file:

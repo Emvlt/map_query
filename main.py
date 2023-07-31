@@ -6,13 +6,13 @@ import toml
 from consistency_checker import check_configuration_file_consistency
 
 from map_query.pre_process import pre_process_city
-from map_query.template_matching import template_matching
+from map_query.feature_extraction import extract_features
 from map_query.city_statistics import compute_feature_density
 from map_query.display import display_city, display_features, display_feature_density
 
 F_NAME_to_FUNCTION={
     'pre_processing':pre_process_city,
-    'template_matching':template_matching,
+    'extract_features':extract_features,
     'compute_feature_density':compute_feature_density,
     'display_feature_density':display_feature_density,
     'display_features':display_features,
