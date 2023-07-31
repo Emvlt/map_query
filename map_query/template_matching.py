@@ -38,13 +38,13 @@ def tile_pattern_matching(
     tile = load_and_preprocess(tile_path)
     tile_height = tile.shape[0]
     tile_width  = tile.shape[1]
-    # +------------------------+
-    # |(0,0)          (0,11400)|
-    # |                        |
-    # |                        |
-    # |                        |
-    # |(7590,0)    (7590,11400)|
-    # +------------------------+
+    # +----------------------------+
+    # |(0,0)              (0,width)|
+    # |                            |
+    # |                            |
+    # |                            |
+    # |(height,0)    (height,width)|
+    # +----------------------------+
     ### Unpack tile_information
     tile_name = tile_information['tile_name']
     west_boundary  = tile_information['west_boundary']
@@ -72,8 +72,6 @@ def tile_pattern_matching(
                 center_width  = int(M["m10"] / M["m00"])
                 center_height = int(M["m01"] / M["m00"])
                 ## Check if a shape already exists in the dataset, that has the same tag and
-                feature_center_tile_reference = center_height, center_width
-
                 lattitude_start = west_boundary+center_width*width_scaling
                 lattitude_stop  = west_boundary+(center_width+template_width)*width_scaling
                 longitude_start = north_boundary+center_height*height_scaling
@@ -122,7 +120,7 @@ def template_matching(
     geo_data_file_extension = pre_process_dict['geo_data_file_extension']
     geo_data_file_extension_driver = pre_process_dict['geo_data_file_extension_driver']
 
-    templates:List = pre_process_dict['templates']
+    templates:List = pre_process_dict['templates_names']
 
     pixel_tolerance = pre_process_dict['pixel_tolerance']
     detection_threshold = pre_process_dict['detection_threshold']
@@ -144,6 +142,8 @@ def template_matching(
 
     if not city_feature_dataframe_path.is_file():
         city_feature_dataframe = gpd.GeoDataFrame(columns=columns, geometry="geometry", crs=crs)#type:ignore
+    else:
+        city_feature_dataframe = gpd.GeoDataFrame.from_file(city_feature_dataframe_path)
 
         for row_index, tile_information in  city_dataframe.iterrows():
             tile_name = tile_information['tile_name']
@@ -167,7 +167,5 @@ def template_matching(
                 city_feature_dataframe = city_feature_dataframe.append(tile_feature_dataframe) #type:ignore
 
         city_feature_dataframe.to_file(city_feature_dataframe_path, driver=geo_data_file_extension_driver)
-
-    city_feature_dataframe = gpd.GeoDataFrame.from_file(city_feature_dataframe_path)
 
     return city_feature_dataframe_path, city_feature_dataframe
