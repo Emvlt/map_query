@@ -4,11 +4,13 @@ __pycache__/
 
 datasets/raw
 datasets/processed
-
-map_query/old
+datasets/hand_segmented_features
 
 map_query/label_data_analysis.py
 
 plots
 
 environment.yml
+
+project_configuration_debug.toml
+

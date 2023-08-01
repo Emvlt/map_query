@@ -16,7 +16,7 @@ def create_geodataframe(tile_name:str, feature_name:str,lattitude:float, longitu
     entry_dict = {
         'id':[uuid.uuid1()],
         'tile_name':[tile_name],
-        'feature_name':[feature_name],
+        'feature':[feature_name],
         'lattitude' : [lattitude],
         'longitude': [longitude],
         'geometry': [bounding_box]
@@ -47,10 +47,10 @@ def tile_pattern_matching(
     # +----------------------------+
     ### Unpack tile_information
     tile_name = tile_information['tile_name']
-    west_boundary  = tile_information['west_boundary']
-    north_boundary = tile_information['north_boundary']
-    lattitude_length = tile_information['lattitude_length']
-    longitude_length = tile_information['longitude_length']
+    west_boundary  = tile_information['west']
+    north_boundary = tile_information['north']
+    lattitude_length = tile_information['lat_length']
+    longitude_length = tile_information['lon_length']
     width_scaling  = lattitude_length / tile_width
     height_scaling = longitude_length / tile_height
     ### create tile_feature geo_dataframe
@@ -135,7 +135,7 @@ def template_matching(
     assert city_dataframe_path.is_file()
     city_dataframe:gpd.GeoDataFrame = gpd.GeoDataFrame.from_file(city_dataframe_path)
 
-    columns = ["id", "tile_name", "feature_name", "lattitude", "longitude", "geometry"]
+    columns = ["id", "tile_name", "feature", "lattitude", "longitude", "geometry"]
 
 
     city_feature_dataframe_path = processed_city_path.joinpath(f'{city_name}_features{geo_data_file_extension}')

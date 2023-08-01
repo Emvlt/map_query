@@ -24,23 +24,23 @@ def process_tfw_file(file_path:Path, tile_width, tile_height) -> dict:
     east_boundary = west_boundary + (tile_width - 1) * x_diff
     south_boundary = north_boundary + (tile_height - 1) * y_diff
     return {
-        'west_boundary':west_boundary,
-        'north_boundary':north_boundary,
-        'east_boundary':east_boundary,
-        'south_boundary':south_boundary,
+        'west':west_boundary,
+        'north':north_boundary,
+        'east':east_boundary,
+        'south':south_boundary,
         'x_diff':x_diff, 'y_diff':y_diff,
-        'lattitude_length': (tile_width - 1) * x_diff,
-        'longitude_length':(tile_height - 1) * y_diff}
+        'lat_length': (tile_width - 1) * x_diff,
+        'lon_length':(tile_height - 1) * y_diff}
 
 def process_city_geodata(tile_file_path:Path, map_geodata_file_extension:str, city_dict:Dict[str,List], tile_shape:Tuple) -> Dict[str,List]:
     if tile_file_path.suffix == map_geodata_file_extension:
         if map_geodata_file_extension == '.tfw':
             geo_dict = process_tfw_file(tile_file_path, tile_shape[0], tile_shape[1])
             city_dict['geometry'].append(Polygon([
-                (geo_dict['west_boundary'] ,geo_dict['north_boundary']),
-                (geo_dict['east_boundary'], geo_dict['north_boundary']),
-                (geo_dict['east_boundary'], geo_dict['south_boundary']),
-                (geo_dict['west_boundary'], geo_dict['south_boundary'])
+                (geo_dict['west'] ,geo_dict['north']),
+                (geo_dict['east'], geo_dict['north']),
+                (geo_dict['east'], geo_dict['south']),
+                (geo_dict['west'], geo_dict['south'])
             ]))
         else:
             raise NotImplementedError
@@ -52,14 +52,13 @@ def process_city_geodata(tile_file_path:Path, map_geodata_file_extension:str, ci
                 city_dict[key] = [item]
     return city_dict
 
-
 def create_tile_coord(dataframe:pd.DataFrame) -> pd.DataFrame:
     ## Get west and north boundaries
-    west_boundary  = dataframe['west_boundary'].min()
-    north_boundary = dataframe['north_boundary'].max()
+    west_boundary  = dataframe['west'].min()
+    north_boundary = dataframe['north'].max()
 
-    dataframe['tile_x_coord'] = (dataframe['west_boundary'] - west_boundary)/dataframe['lattitude_length']
-    dataframe['tile_y_coord'] = (dataframe['north_boundary'] - north_boundary)/dataframe['longitude_length']
+    dataframe['tile_x'] = (dataframe['west'] - west_boundary)/dataframe['lat_length']
+    dataframe['tile_y'] = (dataframe['north'] - north_boundary)/dataframe['lon_length']
 
     return dataframe
 
@@ -74,7 +73,6 @@ def pre_process_city(
     map_geodata_file_extension = pre_process_dict['map_geodata_file_extension']
     crs = pre_process_dict['crs']
     geo_data_file_extension = pre_process_dict['geo_data_file_extension']
-    geo_data_file_extension_driver = pre_process_dict['geo_data_file_extension_driver']
 
     raw_city_path = paths['raw'].joinpath(city_name)
 
@@ -91,8 +89,8 @@ def pre_process_city(
         list_of_tiles = list(raw_city_path.glob(f'*{map_image_file_extension}'))
         city_dict = {
             'tile_name':[],
-            'tile_width':[],
-            'tile_height':[],
+            'width':[],
+            'height':[],
             'tile_path':[],
             'geometry':[]
             }
@@ -104,8 +102,8 @@ def pre_process_city(
             city_dict['tile_name'].append(tile_name)
 
             tile_shape = compute_tile_shape(tile_path)
-            city_dict['tile_width'].append(tile_shape[0])
-            city_dict['tile_height'].append(tile_shape[1])
+            city_dict['width'].append(tile_shape[0])
+            city_dict['height'].append(tile_shape[1])
 
             city_dict['tile_path'].append(tile_path)
 
@@ -118,6 +116,9 @@ def pre_process_city(
         city_geo_dataframe = gpd.GeoDataFrame(city_dataframe, geometry='geometry', crs=crs) #type:ignore
 
         print(f'Saving geo dataframe at {dataframe_path}')
-        city_geo_dataframe.to_file(dataframe_path, driver=geo_data_file_extension_driver)
+        if 'geo_data_file_extension_driver' in pre_process_dict:
+            city_geo_dataframe.to_file(dataframe_path, driver=pre_process_dict['geo_data_file_extension_driver'])
+        else:
+            city_geo_dataframe.to_file(dataframe_path)
 
     return dataframe_path, city_geo_dataframe

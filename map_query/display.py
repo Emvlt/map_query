@@ -56,7 +56,7 @@ def display_features(paths:Dict[str, Path], city_name:str, operation_dict:Dict):
     city_features:gpd.GeoDataFrame = gpd.GeoDataFrame.from_file(city_features_path)
 
     city_features.plot(
-            column = 'feature_name'
+            column = 'feature'
         )
     plt.savefig(f'{plot_save_path.joinpath(f"features.jpg")}')
     plt.show()
