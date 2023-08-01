@@ -7,3 +7,4 @@ Pillow==9.4.0
 Pillow==10.0.0
 Shapely==2.0.1
 toml==0.10.2
+tqdm==4.65.0
