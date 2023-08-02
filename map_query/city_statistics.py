@@ -11,6 +11,7 @@ def compute_feature_density(paths:Dict[str, Path], city_name:str, operation_dict
     ### Unpack operation dict
     feature_list = operation_dict['features']
     geo_data_file_extension = operation_dict['geo_data_file_extension']
+    geo_data_file_extension_driver = operation_dict['geo_data_file_extension_driver']
 
     city_feature_statistics_path = processed_city_path.joinpath(f'{city_name}_statistics{geo_data_file_extension}')
 
@@ -29,11 +30,8 @@ def compute_feature_density(paths:Dict[str, Path], city_name:str, operation_dict
             feature_count = []
             for tile_name in city_feature_statistics['tile_name']:
                 occurences = (city_feature['tile_name'] == tile_name) & (city_feature['feature'] == feature_name)
-                print(occurences)
                 feature_count.append(occurences.sum())
             city_feature_statistics[feature_name] = pd.Series(feature_count)
 
-    if 'geo_data_file_extension_driver' in operation_dict:
-        city_feature_statistics.to_file(city_feature_statistics_path, driver=operation_dict['geo_data_file_extension_driver'])
-    else:
-        city_feature_statistics.to_file(city_feature_statistics_path)
+    city_feature_statistics.to_file(city_feature_statistics_path, driver=geo_data_file_extension_driver)
+

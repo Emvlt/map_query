@@ -183,7 +183,6 @@ def hand_labelled_feature_extraction(
     tile_path = Path(tile_information['tile_path'])
     city_name = tile_path.parent.stem
     project_name = tile_path.parent.parent.stem
-    tile = load_tile_as_array(tile_path)
     ### Unpack process_dict arguments
     feature_names = process_dict['feature_names']
     color_thresholds = process_dict['color_thresholds']
@@ -214,19 +213,19 @@ def extract_features(
     processed_city_path.mkdir(exist_ok=True, parents=True)
 
     # Unpack operation essential arguments
-    crs = operation_dict['essentials']['crs']
     geo_data_file_extension = operation_dict['essentials']['geo_data_file_extension']
+    geo_data_file_extension_driver = operation_dict['essentials']['geo_data_file_extension_driver']
 
     ### Load city dataframe
     city_dataframe_path = processed_city_path.joinpath(f'{city_name}{geo_data_file_extension}')
     assert city_dataframe_path.is_file(), f'File not found at {city_dataframe_path}, Make sure to pre_process the city first'
     city_dataframe:gpd.GeoDataFrame = gpd.GeoDataFrame.from_file(city_dataframe_path)
-
+    crs = city_dataframe.crs
     ### Load feature dataframe
     columns = ["id", "tile_name", "feature", "lattitude", "longitude", "geometry"]
     city_feature_dataframe_path = processed_city_path.joinpath(f'{city_name}_features{geo_data_file_extension}')
     if not city_feature_dataframe_path.is_file():
-        city_feature_dataframe = gpd.GeoDataFrame(columns=columns, geometry="geometry", crs=crs)#type:ignore
+        city_feature_dataframe = gpd.GeoDataFrame(columns=columns, geometry="geometry", crs=crs) #type:ignore
     else:
         city_feature_dataframe = gpd.GeoDataFrame.from_file(city_feature_dataframe_path)
 
@@ -247,10 +246,12 @@ def extract_features(
                     tile_feature_dataframe_path = tile_folder.joinpath(f'raw_features{geo_data_file_extension}')
                 else:
                     raise NotImplementedError
+
                 if not tile_feature_dataframe_path.is_file():
                     tile_feature_dataframe = gpd.GeoDataFrame(columns=columns, geometry="geometry", crs=crs)#type:ignore
                 else:
                     tile_feature_dataframe = gpd.GeoDataFrame.from_file(tile_feature_dataframe_path)
+
                 # 3) Execute the feature_extraction core function
                 if process_dict['tile_overwrite']:
                     if process_dict['process_name'] == 'template_matching':
@@ -260,22 +261,19 @@ def extract_features(
                     else:
                         raise NotImplementedError
                     # 4) Save the tile feature dataframe
-                    if 'geo_data_file_extension_driver' in operation_dict:
-                        tile_feature_dataframe.to_file(tile_feature_dataframe_path, driver=operation_dict['geo_data_file_extension_driver'])
-                    else:
-                        tile_feature_dataframe.to_file(tile_feature_dataframe_path)
-                # 5) Perform a spatial join to remove duplicates
-                city_feature_dataframe = pd.concat([city_feature_dataframe, tile_feature_dataframe], ignore_index=True)
-                #city_feature_dataframe.sjoin(tile_feature_dataframe)
+                    tile_feature_dataframe.to_file(tile_feature_dataframe_path, driver=geo_data_file_extension_driver)
 
-            ### Conversion to correct datafile format
-            city_feature_dataframe.drop(columns=['index'])
+                # 5) Perform a spatial join to remove duplicates
+                city_feature_dataframe = pd.concat([city_feature_dataframe, tile_feature_dataframe], ignore_index=True) #type:ignore
+                # city_feature_dataframe.sjoin(tile_feature_dataframe)
+
+            # Conversion to correct datafile format
+            if 'index' in city_feature_dataframe.columns:
+                city_feature_dataframe.drop(columns=['index'])
             #city_feature_dataframe = gpd.GeoDataFrame(city_feature_dataframe, geometry="geometry") #type:ignore
 
             # Once the loop over the rows of the city dataframe is over, we can save the city_features_dataframe
-            if 'geo_data_file_extension_driver' in operation_dict:
-                city_feature_dataframe.to_file(city_feature_dataframe_path, driver=operation_dict['geo_data_file_extension_driver'])#type:ignore
-            else:
-                city_feature_dataframe.to_file(city_feature_dataframe_path)#type:ignore
+            city_feature_dataframe:gpd.GeoDataFrame
+            city_feature_dataframe.to_file(city_feature_dataframe_path, driver=geo_data_file_extension_driver)
 
-    return city_feature_dataframe_path, city_feature_dataframe #type:ignore
+    return city_feature_dataframe_path, city_feature_dataframe

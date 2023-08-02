@@ -13,12 +13,10 @@ city_names = ['Luton']
 # map_image_file_extension (str): file extension of the map image data (e.g: '.tif')
 # map_geodata_file_extension (str): file extension of the map projection data (e.g: '.tfw')
 map_image_file_extension = '.tif'
-map_geodata_file_extension = '.tfw'
 ### Information about geospatial data in the project
 # crs : Coordinate REference System (e.g: "EPSG:4326")
 # geo_data_file_extension : file extension to which save the geospatial data to (e.g: '.geojson'); see: https://geopandas.org/en/stable/docs/user_guide/io.html
 # geo_data_file_extension_driver = driver to save the geospatial data (e.g: 'GeoJSON'); see: https://geopandas.org/en/stable/docs/user_guide/io.html
-crs = "EPSG:4326"
 geo_data_file_extension = '.shp'
 geo_data_file_extension_driver = 'ESRI Shapefile'
 
@@ -28,8 +26,8 @@ geo_data_file_extension = '.shp'
 [operations.extract_features]
 [operations.extract_features.essentials]
 ### Essential regardless Operation
-crs = "EPSG:4326"
 geo_data_file_extension = '.shp'
+geo_data_file_extension_driver = 'ESRI Shapefile'
 
 ### process
 [[operations.extract_features.processes]]
@@ -39,12 +37,13 @@ detection_threshold = 0.85
 templates_path = 'datasets/labels/templates'
 template_names = ['bench_mark', 'lamp_post', 'man_hole']
 template_file_extension ='.jpg'
-city_overwrite=false
+city_overwrite=true
 tile_overwrite=false
 
 [operations.compute_feature_density]
 features = ['bench_mark', 'lamp_post', 'man_hole']
 geo_data_file_extension = '.shp'
+geo_data_file_extension_driver = 'ESRI Shapefile'
 
 [operations.display_feature_density]
 features = ['bench_mark', 'lamp_post', 'man_hole']
