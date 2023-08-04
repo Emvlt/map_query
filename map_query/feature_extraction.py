@@ -2,6 +2,7 @@ from typing import Dict, Tuple, List
 from pathlib import Path
 import uuid
 
+from torch.utils.data import DataLoader
 import cv2
 import numpy as np
 import pandas as pd
@@ -10,7 +11,9 @@ from shapely.geometry import Polygon, box
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
-from map_query.image_transforms import load_and_preprocess, load_tile_as_array
+from map_query.machine_learning import Thumbnails, SegmentationModel, torch
+from map_query.utils.image_transforms import load_and_preprocess, load_tile_as_array, parse_transformations_list
+
 
 def coordinate_affine_transform(pixel_position, pixel_offset, pixel_scaling):
     return pixel_offset + pixel_position*pixel_scaling
@@ -139,6 +142,55 @@ def extract_contours_from_segmented_tile(segmented_tile:np.uint8, process_dict:D
                 raise NotImplementedError
     return tile_feature_dataframe
 
+def ml_segmentation(tile_information:pd.Series, process_dict:Dict, tile_feature_dataframe:gpd.GeoDataFrame, crs:str) -> gpd.GeoDataFrame:
+    tile_name = tile_information['tile_name']
+    print(f'Performing Machine Learning segmentation on tile {tile_name}')
+    ### Unpacking process_dict
+    feature_names = process_dict['feature_names']
+    data_feeding_dict = process_dict['data_feeding_dict']
+    model_dict = process_dict['model_dict']
+
+    #Define the tile_dataloader on which we will iterate to get the 512*512 thumbnails
+    print('\t Loading dataset...')
+    tile_dataset = Thumbnails(
+        tile_information,
+        tile_transform=data_feeding_dict['tile_transform'],
+        thumbnail_transforms=parse_transformations_list(data_feeding_dict['thumbnail_transforms'])
+        )
+    tile_dataloader = DataLoader(
+        dataset = tile_dataset,
+        batch_size = data_feeding_dict['batch_size'],
+        shuffle = data_feeding_dict['shuffle'],
+        num_workers = data_feeding_dict['num_workers'],
+        drop_last=False)
+
+    # Load the model from the model_dict parameters
+    print('\t Loading model...')
+    if model_dict['name'] == 'maphis_segmentation':
+        segmentation_model = SegmentationModel(model_dict)
+    else:
+        raise NotImplementedError
+
+    device = torch.device(model_dict['device'])
+
+    segmentation_model.eval()
+    segmentation_model.to(device=device)
+    segmentation_model.load_state_dict(torch.load(model_dict['load_path'], map_location=device))
+
+    segmented_tile = torch.zeros((1+len(feature_names), tile_dataset.padded_tile_shape[0], tile_dataset.padded_tile_shape[1] ))
+
+    print('\t Processing the tile...')
+    with torch.no_grad():
+        for batched_thumbnails, batch_indices in tile_dataloader:
+            batched_thumbnails = batched_thumbnails.to(device)
+            segmented_thumbnails = segmentation_model(batched_thumbnails)
+            for index, thumbnail_index in enumerate(batch_indices):
+                coords = tile_dataset.thumbnail_coordinates[int(thumbnail_index)]
+                segmented_tile[:,coords['h_low']:coords['h_high'],coords['w_low']:coords['w_high']] = segmented_thumbnails[index]
+
+    return tile_feature_dataframe
+
+
 def template_matching(tile_information:pd.Series, process_dict:Dict, tile_feature_dataframe:gpd.GeoDataFrame,
                       crs:str) -> gpd.GeoDataFrame:
     tile_name = tile_information['tile_name']
@@ -180,7 +232,7 @@ def hand_labelled_feature_extraction(
     tile_feature_dataframe:gpd.GeoDataFrame, crs:str) -> gpd.GeoDataFrame:
     tile_name = tile_information['tile_name']
     print(f'Performing Feature Extraction on tile {tile_name}')
-    tile_path = Path(tile_information['tile_path'])
+    tile_path = Path(tile_information['tile_path']) #type:ignore
     city_name = tile_path.parent.stem
     project_name = tile_path.parent.parent.stem
     ### Unpack process_dict arguments
@@ -203,10 +255,19 @@ def hand_labelled_feature_extraction(
 
     return tile_feature_dataframe
 
+def load_city_feature_dataframe(processed_city_path:Path, city_name:str, process_name:str, geo_data_file_extension:str, columns:List, crs:str) ->Tuple[Path, gpd.GeoDataFrame]:
+    ### Load feature dataframe
+    city_feature_dataframe_path = processed_city_path.joinpath(f"{city_name}_{process_name}_features{geo_data_file_extension}")
+    if not city_feature_dataframe_path.is_file():
+        city_feature_dataframe = gpd.GeoDataFrame(columns=columns, geometry="geometry", crs=crs) #type:ignore
+    else:
+        city_feature_dataframe = gpd.GeoDataFrame.from_file(city_feature_dataframe_path)
+    return city_feature_dataframe_path, city_feature_dataframe
+
 def extract_features(
     paths:Dict[str,Path],
     city_name:str,
-    operation_dict:Dict) -> Tuple[Path, gpd.GeoDataFrame]:
+    operation_dict:Dict):
     ### Unpack arguments
     # Unpack paths arguments
     processed_city_path = paths['processed'].joinpath(city_name)
@@ -220,16 +281,19 @@ def extract_features(
     city_dataframe_path = processed_city_path.joinpath(f'{city_name}{geo_data_file_extension}')
     assert city_dataframe_path.is_file(), f'File not found at {city_dataframe_path}, Make sure to pre_process the city first'
     city_dataframe:gpd.GeoDataFrame = gpd.GeoDataFrame.from_file(city_dataframe_path)
+
     crs = city_dataframe.crs
-    ### Load feature dataframe
     columns = ["id", "tile_name", "feature", "lattitude", "longitude", "geometry"]
-    city_feature_dataframe_path = processed_city_path.joinpath(f'{city_name}_features{geo_data_file_extension}')
-    if not city_feature_dataframe_path.is_file():
-        city_feature_dataframe = gpd.GeoDataFrame(columns=columns, geometry="geometry", crs=crs) #type:ignore
-    else:
-        city_feature_dataframe = gpd.GeoDataFrame.from_file(city_feature_dataframe_path)
 
     for process_dict in operation_dict['processes']:
+        process_name = process_dict['process_name']
+        city_feature_dataframe_path, city_feature_dataframe = load_city_feature_dataframe(
+            processed_city_path,
+            city_name,
+            process_name,
+            geo_data_file_extension,
+            columns,
+            crs)
 
         if process_dict['city_overwrite']:
             for row_index, tile_information in city_dataframe.iterrows():
@@ -240,12 +304,7 @@ def extract_features(
                 tile_folder = processed_city_path / str(tile_name)
                 tile_folder.mkdir(exist_ok=True, parents=True)
                 # 2) Create or load the feature dataframe
-                if process_dict['process_name'] == 'template_matching':
-                    tile_feature_dataframe_path = tile_folder.joinpath(f'features{geo_data_file_extension}')
-                elif process_dict['process_name'] == 'hand_labelled_feature_extraction':
-                    tile_feature_dataframe_path = tile_folder.joinpath(f'raw_features{geo_data_file_extension}')
-                else:
-                    raise NotImplementedError
+                tile_feature_dataframe_path = tile_folder.joinpath(f'{process_name}_features{geo_data_file_extension}')
 
                 if not tile_feature_dataframe_path.is_file():
                     tile_feature_dataframe = gpd.GeoDataFrame(columns=columns, geometry="geometry", crs=crs)#type:ignore
@@ -254,10 +313,14 @@ def extract_features(
 
                 # 3) Execute the feature_extraction core function
                 if process_dict['tile_overwrite']:
-                    if process_dict['process_name'] == 'template_matching':
-                        tile_feature_dataframe:gpd.GeoDataFrame = template_matching(tile_information, process_dict, tile_feature_dataframe, crs)
-                    elif process_dict['process_name'] == 'hand_labelled_feature_extraction':
-                        tile_feature_dataframe:gpd.GeoDataFrame = hand_labelled_feature_extraction(tile_information, process_dict, tile_feature_dataframe, crs)
+
+                    if process_name == 'template_matching':
+                        tile_feature_dataframe = template_matching(tile_information, process_dict, tile_feature_dataframe, crs)
+                    elif process_name == 'hand_labelled_feature_extraction':
+                        tile_feature_dataframe = hand_labelled_feature_extraction(tile_information, process_dict, tile_feature_dataframe, crs)
+                    elif process_name == 'ml_segmentation':
+                        tile_feature_dataframe = ml_segmentation(tile_information, process_dict, tile_feature_dataframe, crs)
+
                     else:
                         raise NotImplementedError
                     # 4) Save the tile feature dataframe
@@ -275,5 +338,3 @@ def extract_features(
             # Once the loop over the rows of the city dataframe is over, we can save the city_features_dataframe
             city_feature_dataframe:gpd.GeoDataFrame
             city_feature_dataframe.to_file(city_feature_dataframe_path, driver=geo_data_file_extension_driver)
-
-    return city_feature_dataframe_path, city_feature_dataframe

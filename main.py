@@ -20,7 +20,7 @@ F_NAME_to_FUNCTION={
 }
 
 if __name__ == '__main__':
-    config_file = toml.load('project_configuration.toml')
+    config_file = toml.load('project_configuration_debug.toml')
 
     check_configuration_file_consistency(config_file)
     ### Project name

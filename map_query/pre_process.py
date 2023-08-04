@@ -4,7 +4,7 @@ from pathlib import Path
 import pandas as pd
 import geopandas as gpd
 
-from map_query.image_transforms import load_tile_as_array, np
+from map_query.utils.image_transforms import load_tile_as_array, np
 from map_query.utils.geodata import pd, unpack_crs, process_city_geodata, create_city_tile_coordinates
 
 def pre_process_city(

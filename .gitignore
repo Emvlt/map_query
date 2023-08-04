@@ -2,6 +2,7 @@
 
 __pycache__/
 
+datasets/models
 datasets/raw
 datasets/processed
 datasets/hand_segmented_features

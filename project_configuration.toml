@@ -21,6 +21,7 @@ geo_data_file_extension = '.shp'
 geo_data_file_extension_driver = 'ESRI Shapefile'
 
 [operations.display_city]
+figure_name = ''
 geo_data_file_extension = '.shp'
 
 [operations.extract_features]
@@ -41,16 +42,17 @@ city_overwrite=true
 tile_overwrite=false
 
 [operations.compute_feature_density]
-features = ['bench_mark', 'lamp_post', 'man_hole']
+feature_names = ['bench_mark', 'lamp_post', 'man_hole']
 geo_data_file_extension = '.shp'
 geo_data_file_extension_driver = 'ESRI Shapefile'
 
 [operations.display_feature_density]
-features = ['bench_mark', 'lamp_post', 'man_hole']
+figure_name = ''
+feature_names = ['bench_mark', 'lamp_post', 'man_hole']
 geo_data_file_extension = '.shp'
 
 [operations.display_features]
-figure = 'features'
-features = ['bench_mark', 'lamp_post', 'man_hole']
+figure_name = 'features'
+feature_names = ['bench_mark', 'lamp_post', 'man_hole']
 geo_data_file_extension = '.shp'
 
