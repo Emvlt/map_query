@@ -47,7 +47,7 @@ geo_data_file_extension = '.shp'
 geo_data_file_extension_driver = 'ESRI Shapefile'
 
 [operations.display_feature_density]
-figure_name = ''
+figure_name = 'feature_density'
 feature_names = ['bench_mark', 'lamp_post', 'man_hole']
 geo_data_file_extension = '.shp'
 
