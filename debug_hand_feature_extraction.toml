@@ -20,39 +20,30 @@ map_image_file_extension = '.tif'
 geo_data_file_extension = '.shp'
 geo_data_file_extension_driver = 'ESRI Shapefile'
 
-[operations.display_city]
-figure_name = ''
-geo_data_file_extension = '.shp'
-
+### process
 [operations.extract_features]
 [operations.extract_features.essentials]
 ### Essential regardless Operation
 geo_data_file_extension = '.shp'
 geo_data_file_extension_driver = 'ESRI Shapefile'
-
-### process
 [[operations.extract_features.processes]]
-process_name = 'template_matching'
-pixel_tolerance = 20
-detection_threshold = 0.85
-templates_path = 'datasets/labels/templates'
-template_names = ['bench_mark', 'lamp_post', 'man_hole']
-template_file_extension ='.jpg'
-city_overwrite=true
-tile_overwrite=false
+process_name = 'hand_labelled_feature_extraction'
+feature_names = ['buildings', 'text', 'vegetation']
+color_thresholds = [77, 106, 167]
+label_file_extension = '.jpg'
+epsilon = 0.001
+area_detection_threshold = 530
+path_to_hand_segmented_features = 'datasets/hand_segmented_features'
+city_overwrite = false
+tile_overwrite = false
 
 [operations.compute_features_density]
-feature_names = ['bench_mark', 'lamp_post', 'man_hole']
+feature_names = ['buildings', 'text', 'vegetation']
+extraction_process = 'hand_labelled_feature_extraction'
 geo_data_file_extension = '.shp'
 geo_data_file_extension_driver = 'ESRI Shapefile'
 
 [operations.display_features_density]
 figure_name = 'feature_density'
-feature_names = ['bench_mark', 'lamp_post', 'man_hole']
+feature_names = ['buildings', 'text', 'vegetation']
 geo_data_file_extension = '.shp'
-
-[operations.display_features]
-figure_name = 'features'
-feature_names = ['bench_mark', 'lamp_post', 'man_hole']
-geo_data_file_extension = '.shp'
-

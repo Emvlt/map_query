@@ -15,6 +15,12 @@ from map_query.machine_learning import Thumbnails, SegmentationModel, torch
 from map_query.utils.image_transforms import load_and_preprocess, load_tile_as_array, parse_transformations_list
 
 
+HIGH_TO_LOW = {
+    'buildings':['buildings'],
+    'text':['labels', 'stamps_large_font', 'stamps_small_font'],
+    'vegetation':['trees']
+}
+
 def coordinate_affine_transform(pixel_position, pixel_offset, pixel_scaling):
     return pixel_offset + pixel_position*pixel_scaling
 
@@ -140,6 +146,7 @@ def extract_contours_from_segmented_tile(segmented_tile:np.uint8, process_dict:D
                     tile_feature_dataframe = pd.concat([tile_feature_dataframe, create_geodataframe(tile_name, feature_name, lattitude_start, longitude_start, polygon_shape, crs)]) #type:ignore
             else:
                 raise NotImplementedError
+
     return tile_feature_dataframe
 
 def ml_segmentation(tile_information:pd.Series, process_dict:Dict, tile_feature_dataframe:gpd.GeoDataFrame, crs:str) -> gpd.GeoDataFrame:
@@ -240,18 +247,20 @@ def hand_labelled_feature_extraction(
     color_thresholds = process_dict['color_thresholds']
     label_file_extension = process_dict['label_file_extension']
     path_to_hand_segmented_features = Path(process_dict['path_to_hand_segmented_features']).joinpath(f'{project_name}/{city_name}/{tile_name}')
-    for feature_name, color_threshold in zip(feature_names, color_thresholds):
-        path_to_feature_tile = path_to_hand_segmented_features.joinpath(f'{feature_name}{label_file_extension}')
-        if path_to_feature_tile.is_file():
-            feature_tile = load_tile_as_array(path_to_feature_tile)
-            segmented_tile = np.uint8(cv2.threshold(feature_tile, thresh=color_threshold, maxval=1, type=cv2.THRESH_BINARY_INV)[1]*255)
-            element =  cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3,3))
-            segmented_tile = cv2.morphologyEx(segmented_tile, cv2.MORPH_CLOSE, element)
-            tile_feature_dataframe = extract_contours_from_segmented_tile(
-                    segmented_tile, process_dict, tile_information,
-                    feature_name, tile_feature_dataframe, crs, epsilon=process_dict['epsilon'], area_detection_threshold=process_dict['area_detection_threshold'])
-        else:
-            print(f'No {feature_name}{label_file_extension} file found in folder {path_to_hand_segmented_features}, passing')
+    for high_level_feature_name, color_threshold in zip(feature_names, color_thresholds):
+        for sub_feature_name in HIGH_TO_LOW[high_level_feature_name]:
+            print(f'Processing sub feature {sub_feature_name}')
+            path_to_feature_tile = path_to_hand_segmented_features.joinpath(f'{sub_feature_name}{label_file_extension}')
+            if path_to_feature_tile.is_file():
+                feature_tile = load_tile_as_array(path_to_feature_tile)
+                segmented_tile = np.uint8(cv2.threshold(feature_tile, thresh=color_threshold, maxval=1, type=cv2.THRESH_BINARY_INV)[1]*255)
+                element =  cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3,3))
+                segmented_tile = cv2.morphologyEx(segmented_tile, cv2.MORPH_CLOSE, element)
+                tile_feature_dataframe = extract_contours_from_segmented_tile(
+                        segmented_tile, process_dict, tile_information,
+                        high_level_feature_name, tile_feature_dataframe, crs, epsilon=process_dict['epsilon'], area_detection_threshold=process_dict['area_detection_threshold'])
+            else:
+                print(f'No {sub_feature_name}{label_file_extension} file found in folder {path_to_hand_segmented_features}, passing')
 
     return tile_feature_dataframe
 

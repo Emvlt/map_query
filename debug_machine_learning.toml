@@ -20,39 +20,32 @@ map_image_file_extension = '.tif'
 geo_data_file_extension = '.shp'
 geo_data_file_extension_driver = 'ESRI Shapefile'
 
-[operations.display_city]
-figure_name = ''
-geo_data_file_extension = '.shp'
-
+### process
 [operations.extract_features]
 [operations.extract_features.essentials]
 ### Essential regardless Operation
 geo_data_file_extension = '.shp'
 geo_data_file_extension_driver = 'ESRI Shapefile'
-
-### process
 [[operations.extract_features.processes]]
-process_name = 'template_matching'
-pixel_tolerance = 20
-detection_threshold = 0.85
-templates_path = 'datasets/labels/templates'
-template_names = ['bench_mark', 'lamp_post', 'man_hole']
-template_file_extension ='.jpg'
-city_overwrite=true
-tile_overwrite=false
-
-[operations.compute_features_density]
-feature_names = ['bench_mark', 'lamp_post', 'man_hole']
-geo_data_file_extension = '.shp'
-geo_data_file_extension_driver = 'ESRI Shapefile'
-
-[operations.display_features_density]
-figure_name = 'feature_density'
-feature_names = ['bench_mark', 'lamp_post', 'man_hole']
-geo_data_file_extension = '.shp'
-
-[operations.display_features]
-figure_name = 'features'
-feature_names = ['bench_mark', 'lamp_post', 'man_hole']
-geo_data_file_extension = '.shp'
-
+process_name = 'ml_segmentation'
+feature_names = ['buildings', 'text', 'vegetation']
+city_overwrite = true
+tile_overwrite = true
+[operations.extract_features.processes.data_feeding_dict]
+batch_size = 8
+shuffle = true
+num_workers = 1
+tile_transform = 'maphis_transform'
+thumbnail_transforms = [
+    ['ToFloat'], ['Normalise']
+    ]
+[operations.extract_features.processes.model_dict]
+name = 'maphis_segmentation'
+load_path = 'datasets/models/MAPHIS/segmentation/segmentation_real_state_dict.pth'
+train_mode = false
+ngf = 4
+n_gabor_filters = 64
+support_sizes = [5, 7, 9, 11]
+n_input_channels = 3
+n_output_channels = 4
+device = 'cuda:0'

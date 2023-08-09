@@ -22,6 +22,7 @@ def check_display_city(operation_dict:Dict):
 
 def check_compute_feature_density(operation_dict:Dict):
     assert 'feature_names' in operation_dict, 'Specify the list of feature names to process'
+    assert 'extraction_process' in operation_dict, 'Specify the extraction process used to obtain the features'
     assert 'geo_data_file_extension' in operation_dict, 'Specify geodata file extension'
     assert 'geo_data_file_extension_driver' in operation_dict, 'Specify geodata file extension driver'
 
@@ -43,6 +44,14 @@ def check_template_matching(process_dict:Dict):
     assert 'template_file_extension' in process_dict, 'Specify template file extension, e.g: ".jpg"'
     assert 'city_overwrite' in process_dict, 'Specify if the process overwrites the potentially existing city results (boolean argument)'
     assert 'tile_overwrite' in process_dict, 'Specify if the process overwrites the potentially existing tile results (boolean argument)'
+
+def check_hand_labelled_feature_extraction(process_dict:Dict):
+    assert 'feature_names' in process_dict, 'Specify feature names, e.g:["buildings", "text", "trees"]'
+    assert 'color_thresholds' in process_dict, 'Specify color thresholds, e.g:[77, 106, 167]'
+    assert 'label_file_extension' in process_dict, 'Specify label file extension, e.g: .jpg'
+    assert 'path_to_hand_segmented_features' in process_dict, 'Specify path to segmented features, e.g:               hand_segmented_features'
+    assert 'epsilon' in process_dict, 'Specify epsilon float value for approxPolyDP'
+    assert 'area_detection_threshold' in process_dict, 'Specify aread detection threshold int value for false positive detection'
 
 def check_ml_segmentation(process_dict:Dict):
     assert 'feature_names' in process_dict, 'Specify feature names arguments, e.g:["buildings", "text", ...]'
@@ -83,6 +92,8 @@ def check_extract_features(operation_dict:Dict):
             check_template_matching(process_dict)
         elif process_dict['process_name'] == 'ml_segmentation':
             check_ml_segmentation(process_dict)
+        elif process_dict['process_name'] == 'hand_labelled_feature_extraction':
+            check_hand_labelled_feature_extraction(process_dict)
         else:
             raise NotImplementedError
 
@@ -97,14 +108,14 @@ def check_operations(config_dict:Dict):
             check_pre_processing(operation_dict)
         elif operation_name == 'extract_features':
             check_extract_features(operation_dict)
-        elif operation_name == 'compute_feature_density':
+        elif operation_name == 'compute_features_density':
             check_compute_feature_density(operation_dict)
         elif operation_name == 'display_features_density':
             check_display_features_density(operation_dict)
         elif operation_name == 'display_features':
             check_display_features(operation_dict)
         else:
-            raise NotImplementedError
+            raise NotImplementedError(f'{operation_name} not implemented')
 
 
 

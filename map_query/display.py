@@ -28,11 +28,13 @@ def display_feature_density(paths:Dict[str, Path], city_name:str, operation_dict
     plot_save_path.mkdir(exist_ok=True, parents=True)
 
     ### Unpack operation dict
-    feature_list = operation_dict['features']
+    feature_list = operation_dict['feature_names']
     geo_data_file_extension = operation_dict['geo_data_file_extension']
 
     city_feature_statistics_path = processed_city_path.joinpath(f'{city_name}_statistics{geo_data_file_extension}')
     city_feature_statistics:gpd.GeoDataFrame = gpd.GeoDataFrame.from_file(city_feature_statistics_path)
+
+    print(city_feature_statistics)
 
     for feature_name in feature_list:
         city_feature_statistics.plot(

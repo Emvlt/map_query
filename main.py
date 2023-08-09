@@ -13,15 +13,15 @@ from map_query.display import display_city, display_features, display_feature_de
 F_NAME_to_FUNCTION={
     'pre_processing':pre_process_city,
     'extract_features':extract_features,
-    'compute_feature_density':compute_feature_density,
-    'display_feature_density':display_feature_density,
+    'compute_features_density':compute_feature_density,
+    'display_features_density':display_feature_density,
     'display_features':display_features,
     'display_city':display_city
 }
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--configuration_file', required=False, default='project_configuration_debug.toml')
+    parser.add_argument('--configuration_file', required=False, default='debug_hand_feature_extraction.toml')
     args = parser.parse_args()
     config_file = toml.load(args.configuration_file)
 
