@@ -1,9 +1,11 @@
 from typing import Dict, Tuple, List
 from pathlib import Path
 import uuid
+import re
 
 from torch.utils.data import DataLoader
 import cv2
+import torch
 import numpy as np
 import pandas as pd
 import geopandas as gpd
@@ -11,8 +13,10 @@ from shapely.geometry import Polygon, box
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
-from map_query.machine_learning import Thumbnails, SegmentationModel, torch
-from map_query.utils.image_transforms import load_and_preprocess, load_tile_as_array, parse_transformations_list
+from map_query.machine_learning.datasets import Thumbnails
+from map_query.machine_learning.models import load_model
+from map_query.machine_learning.transforms import parse_transformations_list
+from map_query.utils.image_transforms import load_and_preprocess, load_tile_as_array
 
 
 HIGH_TO_LOW = {
@@ -24,26 +28,27 @@ HIGH_TO_LOW = {
 def coordinate_affine_transform(pixel_position, pixel_offset, pixel_scaling):
     return pixel_offset + pixel_position*pixel_scaling
 
-def contour_to_projected(contour, west_boundary, east_boundary, width_scaling, height_scaling):
+def contour_to_projected(contour, west_boundary, north_boundary, width_scaling, height_scaling):
     return (
         (
             coordinate_affine_transform(contour[0][0], west_boundary, width_scaling),
-            coordinate_affine_transform(contour[0][1], east_boundary, height_scaling)
+            coordinate_affine_transform(contour[0][1], north_boundary, height_scaling)
         )
         )
 
-def contour_to_polygon_geojson(contour, west_boundary, east_boundary, width_scaling, height_scaling):
+def contour_to_polygon_geojson(contour, west_boundary, north_boundary, width_scaling, height_scaling):
     lines = []
-    lines.append(contour_to_projected(contour[0], west_boundary, east_boundary, width_scaling, height_scaling))
+    lines.append(contour_to_projected(contour[0], west_boundary, north_boundary, width_scaling, height_scaling))
     for c in reversed(contour):
-        lines.append(contour_to_projected(c, west_boundary, east_boundary, width_scaling, height_scaling))
+        lines.append(contour_to_projected(c, west_boundary, north_boundary, width_scaling, height_scaling))
     return lines
 
-def create_geodataframe(tile_name:str, feature_name:str,lattitude:float, longitude:float, bounding_box:Polygon, crs) -> gpd.GeoDataFrame:
+def create_geodataframe(tile_name:str, feature_name:str, contour:Polygon, lattitude:float, longitude:float, bounding_box:Polygon, crs) -> gpd.GeoDataFrame:
     entry_dict = {
         'id':[uuid.uuid1()],
         'tile_name':[tile_name],
         'feature':[feature_name],
+        'contour':[contour],
         'lattitude' : [lattitude],
         'longitude': [longitude],
         'geometry': [bounding_box]
@@ -122,6 +127,7 @@ def extract_contours_from_segmented_tile(segmented_tile:np.uint8, process_dict:D
     if len(contours) == 0 :
         print( '\t' + f'{len(contours)} {feature_name} contours found, passing...')
     else:
+        print( '\t' + f'{len(contours)} {feature_name} contours found')
         for contour in tqdm(contours):
             if process_name == 'template_matching':
                 moments = cv2.moments(contour)
@@ -131,22 +137,26 @@ def extract_contours_from_segmented_tile(segmented_tile:np.uint8, process_dict:D
                         template_height = kwargs['template_height'], template_width = kwargs['template_width'], pixel_tolerance = kwargs['pixel_tolerance']
                         )
                     inter =tile_feature_dataframe.loc[tile_feature_dataframe['feature'] == feature_name ].sindex.intersection(browse_box.bounds) #type:ignore
+
                     if len(inter) == 0:
-                            tile_feature_dataframe = pd.concat([tile_feature_dataframe, create_geodataframe(tile_name, feature_name, lattitude_start, longitude_start, bounding_box, crs)]) #type:ignore
+                        contour_polygon = Polygon(contour_to_polygon_geojson(contour,0,0,1,1))
+                        tile_feature_dataframe = pd.concat([tile_feature_dataframe, create_geodataframe(tile_name, feature_name, contour_polygon, lattitude_start, longitude_start, bounding_box, crs)]) #type:ignore
                     else:
                         print(f'A point already exists in the dataframe position ({lattitude_start}, {longitude_start})')
 
-            elif process_name == 'hand_labelled_feature_extraction':
+            elif process_name == 'hand_labelled_feature_extraction' or process_name == 'ml_segmentation':
                 moments = cv2.moments(contour)
                 if (moments["m00"]) != 0 and  ( kwargs['area_detection_threshold'] < cv2.contourArea(contour)):
                     contour = cv2.approxPolyDP(contour, kwargs['epsilon'], True)
+
                     lattitude_start, longitude_start, polygon_shape = process_contour_any_shape(
                         contour, west_boundary, north_boundary, width_scaling, height_scaling
                         )
-                    tile_feature_dataframe = pd.concat([tile_feature_dataframe, create_geodataframe(tile_name, feature_name, lattitude_start, longitude_start, polygon_shape, crs)]) #type:ignore
+                    contour_polygon = Polygon(contour_to_polygon_geojson(contour,0,0,1,1))
+                    tile_feature_dataframe = pd.concat([tile_feature_dataframe, create_geodataframe(tile_name, feature_name, contour_polygon, lattitude_start, longitude_start, polygon_shape, crs)]) #type:ignore
+
             else:
                 raise NotImplementedError
-
     return tile_feature_dataframe
 
 def ml_segmentation(tile_information:pd.Series, process_dict:Dict, tile_feature_dataframe:gpd.GeoDataFrame, crs:str) -> gpd.GeoDataFrame:
@@ -171,29 +181,47 @@ def ml_segmentation(tile_information:pd.Series, process_dict:Dict, tile_feature_
         num_workers = data_feeding_dict['num_workers'],
         drop_last=False)
 
-    # Load the model from the model_dict parameters
-    print('\t Loading model...')
-    if model_dict['name'] == 'maphis_segmentation':
-        segmentation_model = SegmentationModel(model_dict)
-    else:
-        raise NotImplementedError
-
     device = torch.device(model_dict['device'])
 
+    segmentation_model = load_model(model_dict, device)
+    segmentation_model.to(device)
     segmentation_model.eval()
-    segmentation_model.to(device=device)
-    segmentation_model.load_state_dict(torch.load(model_dict['load_path'], map_location=device))
 
     segmented_tile = torch.zeros((1+len(feature_names), tile_dataset.padded_tile_shape[0], tile_dataset.padded_tile_shape[1] ))
+    tile_height = tile_dataset.tile_shape[0]
+    tile_width  = tile_dataset.tile_shape[1]
+    height_padding = tile_dataset.tile_dict['height_padding']
+    width_padding  = tile_dataset.tile_dict['width_padding']
 
     print('\t Processing the tile...')
     with torch.no_grad():
-        for batched_thumbnails, batch_indices in tile_dataloader:
+        for batched_thumbnails, batch_indices in tqdm(tile_dataloader):
             batched_thumbnails = batched_thumbnails.to(device)
             segmented_thumbnails = segmentation_model(batched_thumbnails)
             for index, thumbnail_index in enumerate(batch_indices):
                 coords = tile_dataset.thumbnail_coordinates[int(thumbnail_index)]
-                segmented_tile[:,coords['h_low']:coords['h_high'],coords['w_low']:coords['w_high']] = segmented_thumbnails[index]
+                segmented_tile[:,coords['h_low']:coords['h_high'],coords['w_low']:coords['w_high']] += segmented_thumbnails[index].detach().cpu()
+
+    unpadded_tile = segmented_tile[
+        :,
+        height_padding : height_padding + tile_height,
+        width_padding  : width_padding  + tile_width
+        ].numpy()
+
+    binary_tile = np.nan_to_num(unpadded_tile)
+    binary_tile = np.where(0.95 < binary_tile, 1,0)*255
+    binary_tile = binary_tile.astype(np.uint8)
+
+    for feature_index, feature_name in enumerate(feature_names):
+        tile_feature_dataframe = extract_contours_from_segmented_tile(
+            binary_tile[1+feature_index],
+            process_dict,
+            tile_information,
+            feature_name,
+            tile_feature_dataframe,
+            crs,
+            epsilon=process_dict['epsilon'],
+            area_detection_threshold=process_dict['area_detection_threshold'])
 
     return tile_feature_dataframe
 
@@ -312,17 +340,12 @@ def extract_features(
                 # 1) Make tile folder
                 tile_folder = processed_city_path / str(tile_name)
                 tile_folder.mkdir(exist_ok=True, parents=True)
-                # 2) Create or load the feature dataframe
+                # 2) Define the feature dataframe path
                 tile_feature_dataframe_path = tile_folder.joinpath(f'{process_name}_features{geo_data_file_extension}')
-
-                if not tile_feature_dataframe_path.is_file():
-                    tile_feature_dataframe = gpd.GeoDataFrame(columns=columns, geometry="geometry", crs=crs)#type:ignore
-                else:
-                    tile_feature_dataframe = gpd.GeoDataFrame.from_file(tile_feature_dataframe_path)
 
                 # 3) Execute the feature_extraction core function
                 if process_dict['tile_overwrite']:
-
+                    tile_feature_dataframe = gpd.GeoDataFrame(columns=columns, geometry="geometry", crs=crs)#type:ignore
                     if process_name == 'template_matching':
                         tile_feature_dataframe = template_matching(tile_information, process_dict, tile_feature_dataframe, crs)
                     elif process_name == 'hand_labelled_feature_extraction':
@@ -334,6 +357,10 @@ def extract_features(
                         raise NotImplementedError
                     # 4) Save the tile feature dataframe
                     tile_feature_dataframe.to_file(tile_feature_dataframe_path, driver=geo_data_file_extension_driver)
+                    tile_feature_dataframe.plot()
+                    plt.show()
+                else:
+                    tile_feature_dataframe = gpd.GeoDataFrame.from_file(tile_feature_dataframe_path)
 
                 # 5) Perform a spatial join to remove duplicates
                 city_feature_dataframe = pd.concat([city_feature_dataframe, tile_feature_dataframe], ignore_index=True) #type:ignore

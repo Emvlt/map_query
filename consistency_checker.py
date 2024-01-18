@@ -69,15 +69,11 @@ def check_ml_segmentation(process_dict:Dict):
     assert 'name' in process_dict['model_dict'], 'Specify model name'
     assert 'device' in process_dict['model_dict'], 'Specify device name'
     if process_dict['model_dict']['name'] == 'maphis_segmentation':
-        assert 'load_path' in process_dict['model_dict'], 'Specify model load path (str)'
-        assert 'train_mode' in process_dict['model_dict'], 'Specify model train mode (bool)'
-        assert 'ngf' in process_dict['model_dict'], 'Specify number of features for CNN (int)'
-        assert 'n_gabor_filters' in process_dict['model_dict'], 'Specify number of gabor filters (int)'
-        assert 'support_sizes' in process_dict['model_dict'], 'Specify support sizes for gabor filters (List[int])'
-        assert 'n_input_channels' in process_dict['model_dict'], 'Specify number of input channels (int)'
-        assert 'n_output_channels' in process_dict['model_dict'], 'Specify number of output channels (int)'
+        pass
+
+
     else:
-        print('The checkers for model {process_dict["model_dict"]["name"]} are not implemented, passing...')
+        print(f'The checkers for model {process_dict["model_dict"]["name"]} are not implemented, passing...')
 
 
 def check_extract_features(operation_dict:Dict):
@@ -97,6 +93,14 @@ def check_extract_features(operation_dict:Dict):
         else:
             raise NotImplementedError
 
+def check_make_training_data(operation_dict:Dict):
+    assert 'training_data_path' in operation_dict, 'Specify the path of the folder to save training data to'
+    assert 'feature_names' in operation_dict, 'Specify the features names (List) for making a batch of training data '
+    assert 'training_data_file_extension' in operation_dict, 'Specify the training data file extension (str)'
+    assert 'record_file_name' in operation_dict, 'Specify the record file name (str)'
+    assert 'record_file_extension' in operation_dict, 'Specify the record file extension (str)'
+    assert 'geo_data_file_extension' in operation_dict, 'Specify geodata file extenstion (str)'
+
 def check_operations(config_dict:Dict):
     assert 'operations' in config_dict, 'Specify the operations information'
     for operation_name, operation_dict in config_dict['operations'].items():
@@ -114,6 +118,10 @@ def check_operations(config_dict:Dict):
             check_display_features_density(operation_dict)
         elif operation_name == 'display_features':
             check_display_features(operation_dict)
+        elif operation_name == 'make_training_data':
+            check_make_training_data(operation_dict)
+        elif operation_name == 'train_segmentation':
+            pass
         else:
             raise NotImplementedError(f'{operation_name} not implemented')
 

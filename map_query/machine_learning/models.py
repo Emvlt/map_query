@@ -1,97 +1,22 @@
-from pathlib import Path
 import math
+from typing import List, Dict
 
 import torch
-from torch.utils.data import Dataset
 import torch.nn as nn
-import matplotlib.pyplot as plt
-import pandas as pd
-import numpy as np
 
-from map_query.utils.image_transforms import load_tile_as_array, erode, dilate
+def load_model(model_dict:Dict, device:torch.device) ->torch.nn.Module:
+     ###  Load the model from the model_dict parameters
+    print('\t Loading model...')
+    if model_dict['name'] == 'maphis_segmentation':
+        model = SegmentationModel(model_dict)
+    else:
+        raise NotImplementedError
 
+    if 'model_load_path' in model_dict:
+        print(f'Loading model at {model_dict["model_load_path"]}')
+        model.load_state_dict(torch.load(model_dict['model_load_path'], map_location=device))
 
-class Thumbnails(Dataset):
-    def __init__(self,
-                 tile_information:pd.Series,
-                 tile_transform = None,
-                 thumbnail_transforms = None,
-                 verbose = True) -> None:
-
-        tile_shape = (tile_information['height'], tile_information['width'])
-
-        tile_path = Path(tile_information['tile_path'])
-        tile = load_tile_as_array(tile_path)
-
-        if tile_transform == 'maphis_transform':
-            tile_to_thumbnail = {
-            (7200,10800):{
-                'height_padding':121,
-                'width_padding':169,
-                'height_stride':50,
-                'width_stride':50,
-                'n_cols':23,
-                'n_rows':15
-            },
-            (7590,11400):{
-                'height_padding':157,
-                'width_padding':100,
-                'height_stride':50,
-                'width_stride':50,
-                'n_cols':24,
-                'n_rows':16
-            }}
-            self.tile_dict  = tile_to_thumbnail[tile_shape]
-            self.thumbnail_size = 512
-
-            self.padded_tile_shape = (
-                tile_information['height'] + 2*self.tile_dict['height_padding'],
-                tile_information['width'] + 2*self.tile_dict['width_padding'],
-                )
-
-            tile_padding = nn.ConstantPad2d((
-                self.tile_dict['width_padding'], self.tile_dict['width_padding'],
-                self.tile_dict['height_padding'], self.tile_dict['height_padding']), 0)
-
-
-            transformed_tile = np.concatenate(
-                (np.expand_dims(erode(tile), 0),
-                 np.expand_dims(tile, 0),
-                 np.expand_dims(dilate(tile), 0)
-                 ), axis = 0)
-
-            self.tensor_tile = tile_padding(torch.from_numpy(transformed_tile))
-
-            self.compute_thumbnails_coordinate()
-        else:
-            raise NotImplementedError
-
-
-        self.thumbnail_transforms = thumbnail_transforms
-
-    def compute_thumbnails_coordinate(self):
-        self.thumbnail_coordinates = {}
-        n_thumbnails = 0
-        for row_index in range(self.tile_dict['n_rows']+1):
-            h_low  = (self.thumbnail_size - self.tile_dict['height_stride'])*row_index
-
-            h_high = self.thumbnail_size*(row_index+1) - self.tile_dict['height_stride']*row_index
-
-            for col_index in range(self.tile_dict['n_cols']+1):
-                w_low  = (self.thumbnail_size - self.tile_dict['width_stride'])*col_index
-                w_high = self.thumbnail_size*(col_index+1) - self.tile_dict['width_stride']*col_index
-                self.thumbnail_coordinates[n_thumbnails] = {'w_low':w_low, 'w_high':w_high, 'h_low':h_low, 'h_high':h_high}
-                n_thumbnails += 1
-
-    def __len__(self):
-        return len(self.thumbnail_coordinates)
-
-    def __getitem__(self, index):
-        thumbnail = self.tensor_tile[:, self.thumbnail_coordinates[index]['h_low']:self.thumbnail_coordinates[index]['h_high'],
-            self.thumbnail_coordinates[index]['w_low']:self.thumbnail_coordinates[index]['w_high']]
-        if self.thumbnail_transforms is not None:
-            thumbnail = self.thumbnail_transforms(thumbnail)
-        return thumbnail, index
+    return model
 
 class Down2D(nn.Module):
     """Down sampling unit of factor 2
@@ -175,7 +100,7 @@ class Unet2D(nn.Module):
         self.conv3 = nn.Conv2d(ngf, in_channels, 3, stride=1, padding=1)
         self.conv4 = nn.Conv2d(in_channels, out_channels, 3, stride=1, padding=1)
         self.l_relu = nn.LeakyReLU(negative_slope=0.1)
-        self.sigmoid = nn.Sigmoid()
+        self.activation_layer = nn.Sigmoid()
 
     def forward(self, input_tensor :torch.Tensor):
         s_0  = self.l_relu(self.conv1(input_tensor))
@@ -195,60 +120,72 @@ class Unet2D(nn.Module):
         u_6 = self.up6(u_5, s_2)
         u_7 = self.up7(u_6, s_1)
         y_0 = self.l_relu(self.conv3(u_7))
-        y_1 = self.sigmoid(self.conv4(y_0))
+        y_1 = self.activation_layer(self.conv4(y_0))
         return y_1
 
 class SegmentationModel(nn.Module):
     def __init__(self, parameters_dict:dict):
         super().__init__()
-        ## Assert that all parameters are here:
-        for param_name in ['ngf', 'n_gabor_filters', 'support_sizes']:
-            if not parameters_dict[param_name]:
-                raise KeyError (f'{param_name} is missing')
-        self.ngf           = parameters_dict['ngf']
-        self.n_gabor_filters  = parameters_dict['n_gabor_filters']
-        self.support_sizes    = parameters_dict['support_sizes']
-        self.n_input_channels = parameters_dict['n_input_channels']
-        self.n_output_channels = parameters_dict['n_output_channels']
-        self.train_mode = parameters_dict['train_mode']
+        ### Gabor filters parameters
+        self.support_sizes:List        = parameters_dict['support_sizes']
+        ## Spatial resolution parameters
+        self.frequency_range:List     = parameters_dict['frequency_range']
+        self.frequency_resolution:int = parameters_dict['frequency_resolution']
+        ## Angular resolution parameters
+        self.angular_range:List     = parameters_dict['angular_range']
+        self.angular_resolution:int =  parameters_dict['angular_resolution']
+        ### Unet parameters
+        self.ngf:int                = parameters_dict['ngf']
+        self.n_input_channels:int   = parameters_dict['n_input_channels']
+        self.n_output_channels:int  = parameters_dict['n_output_channels']
+        ### For each support size, there is
+        ## frequency_resolution*angular_resolution filters
         self.gabor_filters  = nn.ModuleDict({
             f'{support_size}': nn.Conv2d(
                 self.n_input_channels,
-                int(self.n_gabor_filters/len(self.support_sizes)),
+                self.frequency_resolution*self.angular_resolution,
                 support_size,
                 stride = 1,
+                bias = False,
                 padding=int((support_size-1)/2), padding_mode='reflect' ) for support_size in self.support_sizes
             })
-
-        for param in self.gabor_filters.parameters():
-            param.requires_grad = False
         self.set_gabor_filters_values()
 
-        self.network = Unet2D(self.n_gabor_filters, self.n_output_channels, self.ngf)
+        self.unet = Unet2D(
+            len(self.support_sizes)*self.frequency_resolution*self.angular_resolution,
+            self.n_output_channels,
+            self.ngf
+            )
 
-    def set_gabor_filters_values(self, theta_range = 90):
+    def set_gabor_filters_values(self):
         """Set the gabor filters values of the nn.module dictionnary
 
         Args:
-            theta_range (int, optional): Angles at which to instantiate the filters. Defaults to 180.
+            theta_range (float, optional): angular range of the filters, in radians
         """
-        thetas = torch.linspace(0, theta_range, int(self.ngf/len(self.support_sizes)))
-        for support_size in self.support_sizes:
-            filters = GaborFilters(support_size)
-            for indextheta, theta in enumerate(thetas):
-                self.gabor_filters[f'{support_size}'].weight[indextheta][0] = nn.parameter.Parameter(filters.get_filter(theta), requires_grad=self.train_mode) #type:ignore
+        angular_space = torch.linspace(self.angular_range[0], self.angular_range[1], self.angular_resolution)
+        frequential_space = torch.linspace(self.frequency_range[0], self.frequency_range[1], self.frequency_resolution)
+        with torch.no_grad():
+            for support_size in self.support_sizes:
+                filters = GaborFilters(support_size)
+                for angular_index, theta in enumerate(angular_space):
+                    for spatial_index,frequency in enumerate(frequential_space):
+                        weight_index = (angular_index * self.angular_resolution) + spatial_index
+
+                        self.gabor_filters[f'{support_size}'].weight[weight_index][0] = nn.parameter.Parameter(  #type:ignore
+                        filters.get_filter(theta, frequency ), requires_grad=True
+                        )
 
     def forward(self, input_tensor:torch.Tensor):
-        c_5  = self.gabor_filters['5'](input_tensor)
-        c_7  = self.gabor_filters['7'](input_tensor)
-        c_9  = self.gabor_filters['9'](input_tensor)
-        c_11 = self.gabor_filters['11'](input_tensor)
-        filtered_input = torch.cat((c_5,c_7,c_9,c_11),1)
-        return self.network(filtered_input)
+        return self.unet(
+            torch.cat(
+                [self.gabor_filters[f'{i}'](input_tensor) for i in self.support_sizes]
+                ,1)
+            )
 
 class GaborFilters():
     """Class defition of the gabor filters"""
-    def __init__(self, support_size:int, frequency=1/8, sigma=3) -> None:
+    def __init__(self, support_size:int, sigma=3) -> None:
         """Initialise Gabor filters for fixed frequency and support size and sigma
 
         Args:
@@ -257,10 +194,9 @@ class GaborFilters():
             sigma (int, optional): Deviation of the Gabor filter. Defaults to 3.
         """
         self.grid_x, self.grid_y = torch.meshgrid(torch.arange(-math.floor(support_size/2),math.ceil(support_size/2)), torch.arange(-math.floor(support_size/2),math.ceil(support_size/2)), indexing='ij')
-        self.frequency = frequency
         self.sigma_squared = sigma**2
 
-    def get_filter(self, theta:torch.Tensor) -> torch.Tensor:
+    def get_filter(self, theta:torch.Tensor, frequency:torch.Tensor) -> torch.Tensor:
         """Returns a (self.grid_x.shape, self.grid_y.shape) sized matrix containing the Gabor filter values for the and Theta
 
         Args:
@@ -269,5 +205,5 @@ class GaborFilters():
         Returns:
             np.float32: The Gabor filter values
         """
-        g_filter = torch.cos(2*3.1415*self.frequency*(self.grid_x*torch.cos(theta) + self.grid_y*torch.sin(theta)))*torch.exp(-(self.grid_x*self.grid_x+self.grid_y*self.grid_y)/(2*self.sigma_squared))
+        g_filter = torch.cos(2*3.1415*frequency*(self.grid_x*torch.cos(theta) + self.grid_y*torch.sin(theta)))*torch.exp(-(self.grid_x*self.grid_x+self.grid_y*self.grid_y)/(2*self.sigma_squared))
         return g_filter/torch.linalg.norm(g_filter)

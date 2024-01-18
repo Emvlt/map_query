@@ -2,6 +2,8 @@ from typing import Dict
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('TkAgg')
 import geopandas as gpd
 
 def display_city(paths:Dict[str, Path], city_name:str, operation_dict:Dict):
@@ -51,14 +53,15 @@ def display_features(paths:Dict[str, Path], city_name:str, operation_dict:Dict):
     plot_save_path.mkdir(exist_ok=True, parents=True)
 
     ### Unpack operation dict
-    feature_list = operation_dict['features']
+    process_name = operation_dict['extraction_process']
     geo_data_file_extension = operation_dict['geo_data_file_extension']
 
-    city_features_path = processed_city_path.joinpath(f'{city_name}_features{geo_data_file_extension}')
+    city_features_path = processed_city_path.joinpath(f'{city_name}_{process_name}_features{geo_data_file_extension}')
     city_features:gpd.GeoDataFrame = gpd.GeoDataFrame.from_file(city_features_path)
 
     city_features.plot(
             column = 'feature'
         )
-    plt.savefig(f'{plot_save_path.joinpath(f"features.jpg")}')
     plt.show()
+    plt.savefig(f'{plot_save_path.joinpath(f"features.jpg")}')
+

@@ -17,33 +17,22 @@ map_image_file_extension = '.tif'
 # crs : Coordinate REference System (e.g: "EPSG:4326")
 # geo_data_file_extension : file extension to which save the geospatial data to (e.g: '.geojson'); see: https://geopandas.org/en/stable/docs/user_guide/io.html
 # geo_data_file_extension_driver = driver to save the geospatial data (e.g: 'GeoJSON'); see: https://geopandas.org/en/stable/docs/user_guide/io.html
-geo_data_file_extension = '.shp'
-geo_data_file_extension_driver = 'ESRI Shapefile'
+geo_data_file_extension = '.geojson' #'.shp
+geo_data_file_extension_driver = 'GeoJSON' # 'ESRI Shapefile'
 
 ### process
 [operations.extract_features]
 [operations.extract_features.essentials]
 ### Essential regardless Operation
-geo_data_file_extension = '.shp'
-geo_data_file_extension_driver = 'ESRI Shapefile'
+geo_data_file_extension = '.geojson'
+geo_data_file_extension_driver = 'GeoJSON'
 [[operations.extract_features.processes]]
 process_name = 'hand_labelled_feature_extraction'
 feature_names = ['buildings', 'text', 'vegetation']
-color_thresholds = [77, 106, 167]
+color_thresholds = [77, 179, 167]
 label_file_extension = '.jpg'
 epsilon = 0.001
 area_detection_threshold = 530
 path_to_hand_segmented_features = 'datasets/hand_segmented_features'
-city_overwrite = false
-tile_overwrite = false
-
-[operations.compute_features_density]
-feature_names = ['buildings', 'text', 'vegetation']
-extraction_process = 'hand_labelled_feature_extraction'
-geo_data_file_extension = '.shp'
-geo_data_file_extension_driver = 'ESRI Shapefile'
-
-[operations.display_features_density]
-figure_name = 'feature_density'
-feature_names = ['buildings', 'text', 'vegetation']
-geo_data_file_extension = '.shp'
+city_overwrite = true
+tile_overwrite = true

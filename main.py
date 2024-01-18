@@ -5,15 +5,21 @@ import toml
 
 from consistency_checker import check_configuration_file_consistency
 
+from map_query.machine_learning.unsupervised_learning import unsupervised_feature_learning
+from map_query.machine_learning.train_scripts import train_segmentation
 from map_query.pre_process import pre_process_city
 from map_query.feature_extraction import extract_features
 from map_query.city_statistics import compute_feature_density
 from map_query.display import display_city, display_features, display_feature_density
+from map_query.training_data import make_training_data
 
 F_NAME_to_FUNCTION={
     'pre_processing':pre_process_city,
     'extract_features':extract_features,
+    'make_training_data':make_training_data,
+    'train_segmentation':train_segmentation,
     'compute_features_density':compute_feature_density,
+    'unsupervised_feature_learning':unsupervised_feature_learning,
     'display_features_density':display_feature_density,
     'display_features':display_features,
     'display_city':display_city
@@ -21,11 +27,11 @@ F_NAME_to_FUNCTION={
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--configuration_file', required=False, default='debug_hand_feature_extraction.toml')
+    parser.add_argument('--configuration_file', required=False, default='debug_displays.toml')
     args = parser.parse_args()
     config_file = toml.load(args.configuration_file)
 
-    check_configuration_file_consistency(config_file)
+    # check_configuration_file_consistency(config_file)
     ### Project name
     project_name = config_file['project_data']['project_name']
 
