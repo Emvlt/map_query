@@ -10,8 +10,11 @@ datasets/hand_segmented_features
 map_query/label_data_analysis.py
 
 plots
+runs
 
 environment.yml
 
 project_configuration_debug.toml
+debug_*.toml
 
+visualisations_test.py
