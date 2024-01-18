@@ -7,8 +7,10 @@ datasets/raw
 datasets/processed
 datasets/hand_segmented_features
 datasets/training_data
+images
 
 map_query/label_data_analysis.py
+map_query/machine_learning_deprecated.py
 
 plots
 runs
