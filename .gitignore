@@ -6,6 +6,7 @@ datasets/models
 datasets/raw
 datasets/processed
 datasets/hand_segmented_features
+datasets/training_data
 
 map_query/label_data_analysis.py
 
